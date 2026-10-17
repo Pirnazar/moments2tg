@@ -1,0 +1,12 @@
+# local settings and runtime data (contain tokens / post ids)
+config.json
+state.json
+*.tmp
+*.bak
+*.log
+
+# python
+.venv/
+venv/
+__pycache__/
+*.pyc

@@ -1,0 +1,3 @@
+# optional: Moments refresher (UI automation of WeChat 4.1+ via pywechat/pyweixin)
+# pinned to the commit with the 4.1.9+ friend-Moments fix (PyPI 1.9.8 may lag behind)
+pywechat127 @ git+https://github.com/Hello-Mr-Crab/pywechat.git@8589baa049bb91d3a500602c167f07b2f8397a13#subdirectory=src

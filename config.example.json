@@ -1,0 +1,32 @@
+{
+  "weflow_url": "http://127.0.0.1:5031",
+  "weflow_token": "ТОКЕН_ИЗ_WEFLOW_НАСТРОЙКИ_API",
+
+  "telegram_bot_token": "123456789:AA...",
+  "telegram_chat_id": "@my_channel",
+  "telegram_proxy": null,
+
+  "usernames": [
+    "wxid_aaaaaaaaaaaa",
+    { "username": "wxid_bbbbbbbbbbbb", "label": "Имя для подписи", "wechat_name": "Как друг записан в WeChat" }
+  ],
+
+  "poll_interval_sec": 120,
+  "fetch_limit": 20,
+  "skip_existing_on_first_run": true,
+  "include_comments": false,
+  "live_photo_as_video": false,
+
+  "refresh": {
+    "enabled": false,
+    "interval_sec": 900,
+    "load_wait_sec": 6,
+    "scroll_pages": 0,
+    "pause_between_friends_sec": 3,
+    "after_refresh_wait_sec": 10,
+    "skip_if_user_active_sec": 60,
+    "search_pages": 0,
+    "is_maximize": false,
+    "minimize_weixin_after": true
+  }
+}

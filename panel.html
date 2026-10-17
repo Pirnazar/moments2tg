@@ -1,0 +1,940 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>moments2tg</title>
+<style>
+:root {
+  --bg: #f4f5f2;
+  --surface: #ffffff;
+  --surface-2: #f0f1ed;
+  --ink: #1d211c;
+  --ink-2: #5d645a;
+  --ink-3: #8b9287;
+  --line: #e1e3dc;
+  --accent: #1f9d55;       /* WeChat-ish green */
+  --accent-ink: #ffffff;
+  --accent-soft: #e3f4e9;
+  --tg: #2a8bd4;
+  --warn: #b7791f;
+  --warn-soft: #fbf1df;
+  --bad: #c53b32;
+  --bad-soft: #fbe6e4;
+  --radius: 10px;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141613; --surface: #1c1f1b; --surface-2: #232722; --ink: #e8ebe5; --ink-2: #a3aa9f;
+    --ink-3: #747b70; --line: #2e332c; --accent: #3cc173; --accent-ink: #0c1a11; --accent-soft: #1b3324;
+    --tg: #5aaee8; --warn: #e0a84b; --warn-soft: #362b18; --bad: #ef6c62; --bad-soft: #3a1f1d;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding: 20px 16px 48px; }
+header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+.brand h1 { font-size: 18px; margin: 0; letter-spacing: -.01em; }
+.brand .flow { color: var(--ink-3); font-size: 13px; }
+.pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px;
+  font-size: 13px; font-weight: 600; background: var(--surface-2); color: var(--ink-2); }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.pill.on { background: var(--accent-soft); color: var(--accent); }
+.pill.on::before { animation: pulse 2s infinite; }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.busy { background: var(--warn-soft); color: var(--warn); }
+@keyframes pulse { 50% { opacity: .35; } }
+
+button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink); padding: 7px 13px; }
+button:hover { border-color: var(--ink-3); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+button.danger { color: var(--bad); }
+button:disabled { opacity: .5; cursor: default; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.card .k { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; }
+.card .v { font-size: 20px; font-weight: 650; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.card .s { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; min-height: 18px; }
+.ok { color: var(--accent); } .bad-t { color: var(--bad); } .warn-t { color: var(--warn); }
+
+.banner { border-radius: var(--radius); padding: 10px 14px; margin-bottom: 14px; font-size: 13.5px; display: none; }
+.banner.show { display: block; }
+.banner.bad { background: var(--bad-soft); color: var(--bad); }
+.banner.warn { background: var(--warn-soft); color: var(--warn); }
+
+nav { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: 6px 0 16px; overflow-x: auto; }
+nav button { border: 0; border-radius: 0; background: none; color: var(--ink-2); padding: 9px 14px;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+nav button.active { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+nav .count { font-size: 11.5px; background: var(--surface-2); border-radius: 999px; padding: 1px 7px; margin-left: 4px; color: var(--ink-2); }
+section { display: none; } section.active { display: block; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px; border-bottom: 1px solid var(--line); }
+.toolbar .grow { flex: 1; min-width: 160px; }
+input[type=text], input[type=number], input[type=password], input[type=search] {
+  font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 10px; width: 100%; }
+input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+input.mono { font-family: var(--mono); font-size: 13px; }
+select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 100%; }
+.diag { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 12px; font-size: 13px; }
+.diag dt { color: var(--ink-3); } .diag dd { margin: 0; font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.note { border-radius: var(--radius); padding: 9px 13px; margin-bottom: 10px; font-size: 13.5px; background: var(--warn-soft); color: var(--warn); }
+.note.bad { background: var(--bad-soft); color: var(--bad); }
+.chip { font-size: 12px; color: var(--ink-2); background: var(--surface-2); padding: 3px 9px; border-radius: 999px; }
+
+.acc { display: grid; grid-template-columns: 28px minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 10px;
+  align-items: center; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+.acc:last-child { border-bottom: 0; }
+.acc.head { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; padding-top: 8px; padding-bottom: 8px; }
+.acc .who b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acc .who code { font-family: var(--mono); font-size: 12px; color: var(--ink-3); }
+.acc input[type=text] { padding: 5px 8px; font-size: 13px; }
+.acc.off input[type=text] { opacity: .45; }
+.acc input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--accent); }
+.empty { padding: 28px; text-align: center; color: var(--ink-3); }
+
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+fieldset { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 14px; margin: 0; }
+legend { font-weight: 650; padding: 0 6px; }
+.field { margin-bottom: 11px; }
+.field label { display: block; font-size: 12.5px; color: var(--ink-2); margin-bottom: 4px; }
+.field .hint { font-size: 12px; color: var(--ink-3); margin-top: 3px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.check { display: flex; gap: 9px; align-items: flex-start; margin-bottom: 9px; cursor: pointer; }
+.check input { width: 17px; height: 17px; accent-color: var(--accent); margin-top: 1px; flex: none; }
+.check small { display: block; color: var(--ink-3); font-size: 12px; }
+.savebar { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 8px; padding: 12px 0; background: linear-gradient(transparent, var(--bg) 35%); }
+
+.hist { padding: 12px 14px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; }
+.hist:last-child { border-bottom: 0; }
+.hist .t { color: var(--ink-2); font-size: 13px; grid-column: 1 / -1; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hist .m { font-size: 12px; color: var(--ink-3); text-align: right; }
+
+.log { font-family: var(--mono); font-size: 12.5px; line-height: 1.55; height: 460px; overflow: auto; padding: 10px 12px;
+  white-space: pre-wrap; overflow-wrap: anywhere; }
+.log .WARNING { color: var(--warn); } .log .ERROR, .log .CRITICAL { color: var(--bad); }
+
+.toast { position: fixed; right: 16px; bottom: 16px; max-width: min(420px, calc(100vw - 32px)); background: var(--ink); color: var(--bg);
+  padding: 10px 14px; border-radius: 9px; font-size: 13.5px; opacity: 0; transform: translateY(8px); transition: .2s; pointer-events: none; z-index: 10; }
+.toast.show { opacity: 1; transform: none; }
+.toast.err { background: var(--bad); color: #fff; }
+
+.wz-back { position: fixed; inset: 0; background: rgba(10, 14, 10, .45); display: flex; align-items: flex-start; justify-content: center;
+  padding: 5vh 16px; z-index: 20; overflow-y: auto; }
+.wz-back[hidden] { display: none; }
+.wz { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; width: min(640px, 100%);
+  box-shadow: 0 20px 60px rgba(0,0,0,.25); display: flex; flex-direction: column; }
+.wz-head { display: flex; align-items: center; padding: 16px 18px 6px; }
+.wz-head h2 { font-size: 17px; margin: 0; flex: 1; }
+.wz-x { border: 0; background: none; font-size: 16px; color: var(--ink-3); padding: 4px 8px; }
+.wz-steps { display: flex; gap: 6px; list-style: none; margin: 8px 18px 0; padding: 0; counter-reset: s; }
+.wz-steps li { flex: 1; font-size: 12.5px; color: var(--ink-3); padding-top: 8px; border-top: 3px solid var(--line); counter-increment: s; }
+.wz-steps li::before { content: counter(s) ". "; }
+.wz-steps li.cur { color: var(--ink); border-top-color: var(--accent); font-weight: 600; }
+.wz-steps li.done { color: var(--accent); border-top-color: var(--accent); }
+.wz-body { padding: 16px 18px; min-height: 220px; }
+.wz-body h3 { font-size: 15px; margin: 0 0 6px; }
+.wz-body p { margin: 0 0 10px; color: var(--ink-2); }
+.wz-body ol { margin: 0 0 12px; padding-left: 20px; color: var(--ink-2); }
+.wz-body ol li { margin-bottom: 4px; }
+.wz-foot { display: flex; gap: 8px; padding: 12px 18px 16px; border-top: 1px solid var(--line); }
+.wz-foot .grow { flex: 1; }
+.state { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 9px; margin: 10px 0; font-size: 13.5px; background: var(--surface-2); }
+.state.ok { background: var(--accent-soft); color: var(--accent); }
+.state.bad { background: var(--bad-soft); color: var(--bad); }
+.state.warn { background: var(--warn-soft); color: var(--warn); }
+.state .ic { font-weight: 700; flex: none; }
+.inline { display: flex; gap: 8px; } .inline input { flex: 1; }
+.pick { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.pick label { display: flex; gap: 9px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.pick label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.pick input { accent-color: var(--accent); }
+.wz-acc { max-height: 280px; overflow: auto; border: 1px solid var(--line); border-radius: 9px; margin-top: 8px; }
+.wz-acc label { display: flex; gap: 10px; align-items: center; padding: 8px 11px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.wz-acc label:last-child { border-bottom: 0; }
+.wz-acc input { width: 17px; height: 17px; accent-color: var(--accent); flex: none; }
+.wz-acc small { color: var(--ink-3); font-family: var(--mono); font-size: 11.5px; display: block; }
+.spin { display: inline-block; width: 13px; height: 13px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: rot .8s linear infinite; vertical-align: -2px; }
+@keyframes rot { to { transform: rotate(360deg); } }
+
+@media (max-width: 640px) {
+  .acc { grid-template-columns: 28px 1fr; }
+  .acc .opt { grid-column: 2; }
+  .acc.head .opt { display: none; }
+  .row2 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="8" fill="var(--accent)"/>
+        <circle cx="13" cy="13" r="5.5" fill="none" stroke="var(--accent-ink)" stroke-width="2.2"/>
+        <path d="M17.5 19.5 25 24l-2.2-7.6" fill="none" stroke="var(--accent-ink)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <h1>moments2tg</h1>
+        <div class="flow">WeChat Moments → WeFlow → Telegram</div>
+      </div>
+    </div>
+    <span id="pill" class="pill">…</span>
+    <div class="actions">
+      <button id="btnWizard">Мастер настройки</button>
+      <button id="btnStart" class="primary">Запустить</button>
+      <button id="btnStop" class="danger">Остановить</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner"></div>
+
+  <div class="cards">
+    <div class="card"><div class="k">WeFlow</div><div class="v" id="cWeflow">—</div><div class="s" id="cWeflowS"></div></div>
+    <div class="card"><div class="k">Последний проход</div><div class="v" id="cLast">—</div><div class="s" id="cLastS"></div></div>
+    <div class="card"><div class="k">Следующий проход</div><div class="v" id="cNext">—</div><div class="s" id="cNextS"></div></div>
+    <div class="card"><div class="k">Отправлено за сессию</div><div class="v" id="cSent">0</div><div class="s" id="cSentS"></div></div>
+    <div class="card"><div class="k">Обновление лент</div><div class="v" id="cRefresh">—</div><div class="s" id="cRefreshS"></div></div>
+  </div>
+
+  <div class="actions" style="margin-bottom:8px">
+    <button id="btnPoll">Проверить сейчас</button>
+    <button id="btnPollRefresh" title="Откроет ленты друзей в WeChat через pywechat и затем проверит WeFlow">Обновить ленты и проверить</button>
+    <button id="btnTestTg">Тест Telegram</button>
+    <button id="btnTestWf">Тест WeFlow</button>
+  </div>
+
+  <nav>
+    <button data-tab="accounts" class="active">Аккаунты <span class="count" id="nAcc">0</span></button>
+    <button data-tab="weflow">WeFlow <span class="count" id="nWf">…</span></button>
+    <button data-tab="settings">Настройки</button>
+    <button data-tab="history">Отправленные <span class="count" id="nHist">0</span></button>
+    <button data-tab="log">Журнал</button>
+  </nav>
+
+  <section id="tab-accounts" class="active">
+    <div class="panel">
+      <div class="toolbar">
+        <input type="search" id="accSearch" class="grow" placeholder="Поиск по имени, заметке или wxid">
+        <label class="check" style="margin:0"><input type="checkbox" id="accOnlySel"><span>Только выбранные</span></label>
+        <button id="btnLoadAcc">Загрузить из WeFlow</button>
+      </div>
+      <div class="acc head"><span></span><span>Аккаунт</span><span class="opt">Подпись в канале</span><span class="opt">Имя для поиска в WeChat</span></div>
+      <div id="accList"><div class="empty">Нажмите «Загрузить из WeFlow», чтобы получить список аккаунтов с Moments.</div></div>
+      <div class="toolbar" style="border-top:1px solid var(--line);border-bottom:0">
+        <input type="text" id="accManual" class="grow mono" placeholder="Добавить wxid вручную">
+        <button id="btnAddManual">Добавить</button>
+      </div>
+    </div>
+    <div class="savebar"><span class="chip" id="accDirty" style="display:none;align-self:center">есть несохранённые изменения</span><button class="primary" id="btnSaveAcc">Сохранить выбор</button></div>
+  </section>
+
+  <section id="tab-weflow">
+    <div class="cards">
+      <div class="card"><div class="k">Процесс WeFlow</div><div class="v" id="wProc">—</div><div class="s" id="wProcS"></div></div>
+      <div class="card"><div class="k">HTTP API</div><div class="v" id="wApi">—</div><div class="s" id="wApiS"></div></div>
+      <div class="card"><div class="k">Токен</div><div class="v" id="wTok">—</div><div class="s" id="wTokS"></div></div>
+      <div class="card"><div class="k">Защита от удаления</div><div class="v" id="wBd">—</div><div class="s" id="wBdS"></div></div>
+    </div>
+    <div class="actions" style="margin-bottom:14px">
+      <button id="wStart" class="primary">Запустить WeFlow</button>
+      <button id="wRestart">Перезапустить</button>
+      <button id="wStop" class="danger">Остановить</button>
+      <button id="wReload">Обновить статус</button>
+    </div>
+    <div id="wWarn"></div>
+
+    <div class="grid2">
+      <fieldset id="wForm">
+        <legend>Настройки WeFlow</legend>
+        <label class="check"><input type="checkbox" data-w="httpApiEnabled"><span>Включить HTTP API<small>Без него moments2tg не получит Moments</small></span></label>
+        <div class="row2">
+          <div class="field"><label>Порт API</label><input type="number" min="1024" max="65535" data-w="httpApiPort"></div>
+          <div class="field"><label>При закрытии окна</label>
+            <select data-w="windowCloseBehavior">
+              <option value="tray">сворачивать в трей</option>
+              <option value="ask">спрашивать</option>
+              <option value="quit">выходить</option>
+            </select></div>
+        </div>
+        <div class="field"><label>Новый Access Token</label>
+          <div style="display:flex;gap:8px"><input type="text" class="mono" data-w="httpApiToken" placeholder="оставьте пустым, чтобы не менять"><button type="button" id="wGen">Сгенерировать</button></div></div>
+        <label class="check"><input type="checkbox" data-w="launchAtStartup"><span>Запускать WeFlow вместе с системой</span></label>
+        <label class="check"><input type="checkbox" data-w="silentStartup"><span>Запускать свёрнутым в трей</span></label>
+        <label class="check"><input type="checkbox" id="wSync" checked><span>Прописать адрес и токен в moments2tg</span></label>
+        <div class="hint" style="font-size:12.5px;color:var(--ink-3);margin:4px 0 12px">WeFlow держит настройки в памяти, поэтому при сохранении он будет закрыт и запущен заново.</div>
+        <div class="actions"><button type="button" class="primary" id="wSave">Сохранить в WeFlow</button><button type="button" id="wPreset">Рекомендуемые</button></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Moments</legend>
+        <label class="check"><input type="checkbox" id="wBlock"><span>Защита от удаления Moments<small>WeFlow ставит в базу WeChat триггер: если друг удалит или скроет пост, он останется в локальной базе. Работает, пока WeFlow запущен и API отвечает.</small></span></label>
+        <legend style="margin-top:16px;padding:0">Диагностика</legend>
+        <div id="wDiag" class="diag"></div>
+        <div class="field" style="margin-top:12px"><label>Путь к weflow.exe (если не найден сам)</label><input type="text" class="mono" id="wExe"></div>
+        <div class="field"><label>Файл настроек WeFlow (если не стандартный)</label><input type="text" class="mono" id="wCfgPath"></div>
+        <button type="button" id="wSavePaths">Сохранить пути</button>
+      </fieldset>
+    </div>
+  </section>
+
+  <section id="tab-settings">
+    <form id="cfgForm" class="grid2" autocomplete="off" onsubmit="return false">
+      <fieldset>
+        <legend>WeFlow</legend>
+        <div class="field"><label>Адрес API</label><input type="text" class="mono" name="weflow_url"></div>
+        <div class="field"><label>Access Token</label><input type="password" class="mono" name="weflow_token">
+          <div class="hint">Задаётся в WeFlow: Настройки → API 服务. Оставьте как есть, чтобы не менять.</div></div>
+      </fieldset>
+      <fieldset>
+        <legend>Telegram</legend>
+        <div class="field"><label>Токен бота</label><input type="password" class="mono" name="telegram_bot_token"></div>
+        <div class="field"><label>Канал</label><input type="text" class="mono" name="telegram_chat_id" placeholder="@channel или -100…">
+          <div class="hint">Бот должен быть админом канала с правом публикации.</div></div>
+        <div class="field"><label>Прокси (необязательно)</label><input type="text" class="mono" name="telegram_proxy" placeholder="socks5://127.0.0.1:1080"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Опрос</legend>
+        <div class="row2">
+          <div class="field"><label>Интервал, сек</label><input type="number" min="15" name="poll_interval_sec"></div>
+          <div class="field"><label>Постов на аккаунт за проход</label><input type="number" min="1" max="200" name="fetch_limit"></div>
+        </div>
+        <label class="check"><input type="checkbox" name="skip_existing_on_first_run"><span>Пропускать старые посты при первом запуске<small>Публиковать только то, что появится после добавления аккаунта</small></span></label>
+        <label class="check"><input type="checkbox" name="include_comments"><span>Добавлять лайки и комментарии</span></label>
+        <label class="check"><input type="checkbox" name="live_photo_as_video"><span>Live Photo отправлять видео<small>Иначе отправляется обложка</small></span></label>
+        <label class="check"><input type="checkbox" name="panel_autostart"><span>Запускать опрос вместе с панелью</span></label>
+        <label class="check"><input type="checkbox" id="autostartChk"><span>Запускать панель при входе в систему<small id="autostartPath">Применяется сразу, без кнопки «Сохранить»</small></span></label>
+      </fieldset>
+      <fieldset>
+        <legend>Обновление лент через pywechat</legend>
+        <div id="refreshDep"></div>
+        <label class="check"><input type="checkbox" name="refresh.enabled"><span>Включить<small>Скрипт сам откроет ленты друзей в WeChat, двигая мышь и нажимая клавиши. Нужен разблокированный экран.</small></span></label>
+        <div class="row2">
+          <div class="field"><label>Интервал, сек</label><input type="number" min="60" name="refresh.interval_sec"></div>
+          <div class="field"><label>Ждать загрузки ленты, сек</label><input type="number" min="1" name="refresh.load_wait_sec"></div>
+          <div class="field"><label>Пролистать страниц</label><input type="number" min="0" name="refresh.scroll_pages"></div>
+          <div class="field"><label>Пауза между друзьями, сек</label><input type="number" min="0" name="refresh.pause_between_friends_sec"></div>
+          <div class="field"><label>Пауза перед опросом, сек</label><input type="number" min="0" name="refresh.after_refresh_wait_sec"></div>
+          <div class="field"><label>Не мешать, если активны N сек</label><input type="number" min="0" name="refresh.skip_if_user_active_sec"></div>
+        </div>
+        <label class="check"><input type="checkbox" name="refresh.minimize_weixin_after"><span>Сворачивать WeChat после обновления</span></label>
+      </fieldset>
+    </form>
+    <div class="savebar"><button class="primary" id="btnSaveCfg">Сохранить настройки</button></div>
+  </section>
+
+  <section id="tab-history">
+    <div class="panel" id="histList"><div class="empty">В этой сессии ещё ничего не отправлено.</div></div>
+  </section>
+
+  <section id="tab-log">
+    <div class="panel">
+      <div class="toolbar"><label class="check" style="margin:0"><input type="checkbox" id="logFollow" checked><span>Прокручивать к новым</span></label>
+        <span class="grow"></span><button id="btnLogClear">Очистить экран</button></div>
+      <div class="log" id="log"></div>
+    </div>
+  </section>
+</div>
+<div class="wz-back" id="wz" hidden>
+  <div class="wz" role="dialog" aria-modal="true" aria-labelledby="wzTitle">
+    <div class="wz-head">
+      <h2 id="wzTitle">Мастер настройки</h2>
+      <button class="wz-x" id="wzClose" aria-label="Закрыть">✕</button>
+    </div>
+    <ol class="wz-steps" id="wzSteps">
+      <li data-s="0">WeFlow</li><li data-s="1">Telegram</li><li data-s="2">Аккаунты</li><li data-s="3">Запуск</li>
+    </ol>
+    <div class="wz-body" id="wzBody"></div>
+    <div class="wz-foot">
+      <button id="wzPrev">Назад</button>
+      <span class="grow"></span>
+      <button id="wzSkip">Пропустить</button>
+      <button id="wzNext" class="primary">Далее</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : {
+    method: "POST", headers: {"Content-Type": "application/json", "X-Panel": "1"}, body: JSON.stringify(body)
+  };
+  const r = await fetch(path, opt);
+  const data = await r.json().catch(() => ({error: `HTTP ${r.status}`}));
+  if (!r.ok || data.error) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+}
+let toastTimer;
+function toast(msg, err = false) {
+  const t = $("#toast"); t.textContent = msg; t.className = "toast show" + (err ? " err" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = "toast", err ? 6000 : 2800);
+}
+async function act(btn, fn) {
+  btn.disabled = true;
+  try { const r = await fn(); if (r?.message) toast(r.message); } catch (e) { toast(e.message, true); }
+  finally { btn.disabled = false; refreshStatus(); }
+}
+
+/* ---------- time helpers */
+function ago(ts, now) {
+  if (!ts) return "—";
+  const d = Math.max(0, now - ts);
+  if (d < 60) return `${d} с назад`;
+  if (d < 3600) return `${Math.floor(d / 60)} мин назад`;
+  if (d < 86400) return `${Math.floor(d / 3600)} ч назад`;
+  return new Date(ts * 1000).toLocaleString("ru-RU");
+}
+function until(ts, now) {
+  if (!ts) return "—";
+  const d = ts - now;
+  if (d <= 0) return "сейчас";
+  return d < 60 ? `через ${d} с` : `через ${Math.floor(d / 60)} мин ${d % 60} с`;
+}
+const fmtDate = ts => ts ? new Date(ts * 1000).toLocaleString("ru-RU", {day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit"}) : "";
+
+/* ---------- status */
+let lastStatus = null;
+async function refreshStatus() {
+  let s;
+  try { s = await api("/api/status"); } catch (e) {
+    $("#pill").className = "pill bad"; $("#pill").textContent = "Панель недоступна"; return;
+  }
+  lastStatus = s;
+  const pill = $("#pill");
+  if (s.busy === "refresh") { pill.className = "pill busy"; pill.textContent = "Открываю ленты в WeChat"; }
+  else if (s.busy === "poll") { pill.className = "pill busy"; pill.textContent = "Проверяю…"; }
+  else if (s.running && s.last_error) { pill.className = "pill bad"; pill.textContent = "Работает с ошибкой"; }
+  else if (s.running) { pill.className = "pill on"; pill.textContent = "Работает"; }
+  else { pill.className = "pill"; pill.textContent = "Остановлен"; }
+  $("#btnStart").disabled = s.running; $("#btnStop").disabled = !s.running;
+
+  const banner = $("#banner");
+  const msg = s.config_error ? (s.config_exists ? `Ошибка конфига: ${s.config_error}` : "Конфиг ещё не создан: заполните «Настройки» и выберите аккаунты.") : s.last_error;
+  banner.className = "banner" + (msg ? " show " + (s.config_exists ? "bad" : "warn") : "");
+  banner.textContent = msg || "";
+
+  const wf = $("#cWeflow");
+  if (s.weflow_ok === true) { wf.textContent = "на связи"; wf.className = "v ok"; }
+  else if (s.weflow_ok === false) { wf.textContent = "нет связи"; wf.className = "v bad-t"; }
+  else { wf.textContent = "—"; wf.className = "v"; }
+  $("#cWeflowS").textContent = s.telegram_ok === false ? "Telegram не настроен" : `аккаунтов: ${s.accounts ?? 0}`;
+
+  $("#cLast").textContent = s.last_pass_at ? ago(s.last_pass_at, s.now) : "—";
+  $("#cLastS").textContent = s.last_pass_at ? `новых постов: ${s.last_pass_sent}` : "";
+  $("#cNext").textContent = s.running ? until(s.next_pass_at, s.now) : "—";
+  $("#cNextS").textContent = s.poll_interval_sec ? `каждые ${s.poll_interval_sec} с` : "";
+  $("#cSent").textContent = s.total_sent;
+  $("#cSentS").textContent = s.started_at ? `с ${new Date(s.started_at * 1000).toLocaleTimeString("ru-RU")}` : "";
+
+  const rf = $("#cRefresh");
+  rf.textContent = s.refresh_enabled ? "включено" : "выключено";
+  rf.className = "v" + (s.refresh_enabled ? " ok" : "");
+  $("#cRefreshS").textContent = s.last_refresh_at
+    ? `${ago(s.last_refresh_at, s.now)}, открыто ${s.last_refresh_result}`
+    : (s.refresh_enabled && s.next_refresh_at ? `следующее ${until(s.next_refresh_at, s.now)}` : (s.refresh_enabled ? `каждые ${s.refresh_interval_sec} с` : ""));
+
+  renderHistory(s.history || []);
+  renderRefreshDep(s);
+  renderAutostart(s);
+}
+
+function renderAutostart(s) {
+  const a = s.autostart || {};
+  for (const id of ["#autostartChk", "#wzAutoLogin"]) { const el = $(id); if (el && document.activeElement !== el) { el.checked = !!a.enabled; el.disabled = a.supported === false; } }
+  if (a.path) $("#autostartPath").textContent = (a.enabled ? "Включено: " : "Будет создан файл: ") + a.path;
+}
+async function setAutostart(el) {
+  try { const r = await api("/api/autostart", {enabled: el.checked}); toast(r.message); }
+  catch (e) { toast(e.message, true); el.checked = !el.checked; }
+  refreshStatus();
+}
+$("#autostartChk").onchange = e => setAutostart(e.target);
+
+function renderRefreshDep(s) {
+  const box = $("#refreshDep"), fs = box.closest("fieldset");
+  $("#btnPollRefresh").style.display = s.refresh_supported ? "" : "none";
+  let html = "";
+  if (!s.refresh_supported) html = '<div class="note">Работает только в Windows: pywechat управляет десктопным WeChat через Windows UI Automation.</div>';
+  else if (s.refresh_installing) html = '<div class="note"><span class="spin"></span> Устанавливаю pywechat…</div>';
+  else if (!s.refresh_installed) html = '<div class="note">Нужен пакет pywechat. <button type="button" id="btnInstallRefresh">Установить pywechat</button></div>';
+  if (box.dataset.html !== html) {
+    box.innerHTML = html; box.dataset.html = html;
+    const b = $("#btnInstallRefresh"); if (b) b.onclick = e => act(e.target, () => api("/api/install-refresh", {}));
+  }
+  fs.querySelectorAll("input").forEach(i => i.disabled = !s.refresh_supported);
+}
+
+function renderHistory(items) {
+  $("#nHist").textContent = items.length;
+  const el = $("#histList");
+  if (!items.length) { el.innerHTML = '<div class="empty">В этой сессии ещё ничего не отправлено.</div>'; return; }
+  el.innerHTML = items.map(h => `
+    <div class="hist">
+      <b>${esc(h.name)}</b>
+      <span class="m">пост от ${esc(fmtDate(h.createTime))} · отправлен ${esc(new Date(h.sent_at * 1000).toLocaleTimeString("ru-RU"))}${h.media ? ` · медиа: ${h.media}` : ""}</span>
+      <div class="t">${esc(h.text || "(без текста)")}</div>
+    </div>`).join("");
+}
+
+/* ---------- config */
+let cfg = null;
+const getPath = (o, p) => p.split(".").reduce((a, k) => a?.[k], o);
+function setPath(o, p, v) { const ks = p.split("."); const last = ks.pop(); ks.reduce((a, k) => a[k] ??= {}, o)[last] = v; }
+const DEFAULTS = {
+  weflow_url: "http://127.0.0.1:5031", poll_interval_sec: 120, fetch_limit: 20, skip_existing_on_first_run: true,
+  "refresh.interval_sec": 900, "refresh.load_wait_sec": 6, "refresh.scroll_pages": 0, "refresh.pause_between_friends_sec": 3,
+  "refresh.after_refresh_wait_sec": 10, "refresh.skip_if_user_active_sec": 60, "refresh.minimize_weixin_after": true,
+};
+async function loadConfig() {
+  cfg = await api("/api/config");
+  for (const el of $("#cfgForm").elements) {
+    if (!el.name) continue;
+    let v = getPath(cfg, el.name);
+    if (v === undefined || v === null) v = DEFAULTS[el.name] ?? (el.type === "checkbox" ? false : "");
+    if (el.type === "checkbox") el.checked = !!v; else el.value = v;
+  }
+}
+function formToConfig() {
+  const out = structuredClone(cfg);
+  for (const el of $("#cfgForm").elements) {
+    if (!el.name) continue;
+    let v = el.type === "checkbox" ? el.checked : el.value.trim();
+    if (el.type === "number") v = v === "" ? (DEFAULTS[el.name] ?? 0) : Number(v);
+    if (el.name === "telegram_proxy" && v === "") v = null;
+    setPath(out, el.name, v);
+  }
+  out.usernames = accountsToConfig();
+  return out;
+}
+
+/* ---------- accounts */
+let accounts = [];      // [{username, remark, nickname, selected, label, wechat_name, has_moments}]
+let accDirty = false;
+function fromConfigUsers() {
+  return (cfg?.usernames || []).map(u => typeof u === "string" ? {username: u} : u)
+    .map(u => ({username: u.username, remark: "", nickname: "", selected: true, label: u.label || "", wechat_name: u.wechat_name || "", has_moments: true}));
+}
+function accountsToConfig() {
+  return accounts.filter(a => a.selected).map(a => {
+    const e = {username: a.username};
+    if (a.label) e.label = a.label;
+    if (a.wechat_name) e.wechat_name = a.wechat_name;
+    return Object.keys(e).length > 1 ? e : a.username;
+  });
+}
+function markDirty(v = true) { accDirty = v; $("#accDirty").style.display = v ? "" : "none"; }
+function renderAccounts() {
+  const q = $("#accSearch").value.trim().toLowerCase();
+  const onlySel = $("#accOnlySel").checked;
+  const list = accounts
+    .filter(a => !onlySel || a.selected)
+    .filter(a => !q || [a.username, a.remark, a.nickname, a.label, a.wechat_name].some(x => (x || "").toLowerCase().includes(q)))
+    .sort((a, b) => (b.selected - a.selected) || (a.remark || a.nickname || a.username).localeCompare(b.remark || b.nickname || b.username, "zh"));
+  $("#nAcc").textContent = accounts.filter(a => a.selected).length;
+  const el = $("#accList");
+  if (!list.length) { el.innerHTML = `<div class="empty">${accounts.length ? "Ничего не найдено." : "Нажмите «Загрузить из WeFlow», чтобы получить список аккаунтов с Moments."}</div>`; return; }
+  el.innerHTML = list.map(a => {
+    const title = a.remark || a.nickname || a.username;
+    const sub = [a.remark && a.nickname && a.remark !== a.nickname ? a.nickname : "", title !== a.username ? a.username : ""].filter(Boolean).join(" · ");
+    const ph = a.remark || a.nickname || "имя в WeChat";
+    return `<div class="acc ${a.selected ? "" : "off"}" data-u="${esc(a.username)}">
+      <input type="checkbox" ${a.selected ? "checked" : ""} aria-label="Выбрать">
+      <div class="who"><b>${esc(title)}</b><code>${esc(sub)}</code>${a.has_moments ? "" : ' <span class="chip">нет Moments</span>'}</div>
+      <div class="opt"><input type="text" data-f="label" value="${esc(a.label)}" placeholder="${esc(a.nickname || title)}"></div>
+      <div class="opt"><input type="text" data-f="wechat_name" value="${esc(a.wechat_name)}" placeholder="${esc(ph)}"></div>
+    </div>`;
+  }).join("");
+}
+$("#accList").addEventListener("input", e => {
+  const row = e.target.closest(".acc"); if (!row) return;
+  const a = accounts.find(x => x.username === row.dataset.u); if (!a) return;
+  if (e.target.type === "checkbox") { a.selected = e.target.checked; row.classList.toggle("off", !a.selected); $("#nAcc").textContent = accounts.filter(x => x.selected).length; }
+  else a[e.target.dataset.f] = e.target.value.trim();
+  markDirty();
+});
+$("#accSearch").addEventListener("input", renderAccounts);
+$("#accOnlySel").addEventListener("change", renderAccounts);
+$("#btnLoadAcc").onclick = e => act(e.target, async () => {
+  const r = await api("/api/accounts");
+  const local = new Map(accounts.map(a => [a.username, a]));
+  accounts = r.accounts.map(a => local.has(a.username) && accDirty ? {...a, selected: local.get(a.username).selected, label: local.get(a.username).label, wechat_name: local.get(a.username).wechat_name} : a);
+  for (const a of local.values()) if (!accounts.some(x => x.username === a.username)) accounts.push(a);
+  renderAccounts();
+  return {message: `Загружено аккаунтов: ${r.accounts.filter(a => a.has_moments).length}`};
+});
+$("#btnAddManual").onclick = () => {
+  const v = $("#accManual").value.trim(); if (!v) return;
+  const a = accounts.find(x => x.username === v);
+  if (a) a.selected = true; else accounts.push({username: v, remark: "", nickname: "", selected: true, label: "", wechat_name: "", has_moments: true});
+  $("#accManual").value = ""; markDirty(); renderAccounts();
+};
+async function saveAll(btn) {
+  await act(btn, async () => {
+    const r = await api("/api/config", formToConfig());
+    markDirty(false); await loadConfig(); return r;
+  });
+}
+$("#btnSaveAcc").onclick = e => saveAll(e.target);
+$("#btnSaveCfg").onclick = e => saveAll(e.target);
+
+/* ---------- actions */
+$("#btnStart").onclick = e => act(e.target, () => api("/api/start", {}));
+$("#btnStop").onclick = e => act(e.target, () => api("/api/stop", {}));
+$("#btnPoll").onclick = e => act(e.target, () => api("/api/poll", {}));
+$("#btnPollRefresh").onclick = e => {
+  if (!confirm("Сейчас скрипт откроет ленты выбранных друзей в WeChat: он будет двигать мышь и нажимать клавиши. Не трогайте компьютер, пока это идёт. Продолжить?")) return;
+  act(e.target, () => api("/api/poll", {refresh: true}));
+};
+$("#btnTestTg").onclick = e => act(e.target, () => api("/api/test-telegram", {}));
+$("#btnTestWf").onclick = e => act(e.target, () => api("/api/test-weflow", {}));
+
+/* ---------- WeFlow */
+let wf = null, wfFormTouched = false;
+const wInputs = () => [...document.querySelectorAll("#wForm [data-w]")];
+function setCard(id, text, cls, sub) {
+  const v = $(id); v.textContent = text; v.className = "v" + (cls ? " " + cls : "");
+  $(id + "S").textContent = sub || "";
+}
+async function loadWeflow() {
+  try { wf = await api("/api/weflow"); } catch (e) { $("#wWarn").innerHTML = `<div class="note bad">${esc(e.message)}</div>`; return; }
+  const st = wf.settings || {};
+  setCard("#wProc", wf.running ? "запущен" : "не запущен", wf.running ? "ok" : "warn-t", wf.running ? `PID ${wf.pids.join(", ")}` : (wf.exe_exists ? "" : "weflow.exe не найден"));
+  setCard("#wApi", wf.api_up ? "отвечает" : (st.httpApiEnabled ? "не отвечает" : "выключен"), wf.api_up ? "ok" : "bad-t", wf.panel_weflow_url);
+  const tok = {empty: ["не задан", "bad-t", "API будет отклонять все запросы"],
+               encrypted: ["зашифрован", wf.api_up ? "ok" : "", wf.api_up ? "WeFlow принимает токен moments2tg" : "сверить нельзя; при сомнениях задайте новый"],
+               plain: wf.token_matches ? ["совпадает", "ok", "с токеном moments2tg"] : ["не совпадает", "bad-t", "сохраните с «Прописать в moments2tg»"]}[wf.token_state] || ["—", "", ""];
+  setCard("#wTok", tok[0], tok[1], tok[2]);
+  setCard("#wBd", wf.block_delete === null ? "—" : (wf.block_delete ? "включена" : "выключена"), wf.block_delete ? "ok" : "", wf.api_up ? "" : "нужен работающий API");
+  $("#wBlock").checked = !!wf.block_delete; $("#wBlock").disabled = !wf.api_up;
+  $("#nWf").textContent = wf.running && wf.api_up ? "ok" : "!";
+  $("#wStart").disabled = wf.running || !wf.exe_exists; $("#wStop").disabled = !wf.running; $("#wRestart").disabled = !wf.running;
+
+  const warns = [];
+  if (!wf.config_exists) warns.push(["bad", `Не найден файл настроек WeFlow (${wf.config_path}). Установите и запустите WeFlow один раз или укажите путь ниже.`]);
+  const d = wf.diag || {};
+  if (wf.config_exists && !d.onboardingDone) warns.push(["", "WeFlow ещё не настроен: пройдите первичную настройку (подключение к базе WeChat) в самом WeFlow."]);
+  if (wf.config_exists && !d.wcdbLibPath) warns.push(["", "В WeFlow не указан модуль чтения базы (wcdbLibPath). Без него Moments не читаются."]);
+  else if (d.wcdbLibPath && !d.wcdbLibExists) warns.push(["bad", `Модуль чтения базы не найден: ${d.wcdbLibPath}`]);
+  if (d.appLock || d.lockMode) warns.push(["", "В WeFlow включена блокировка паролем: после перезапуска API заработает только когда вы разблокируете WeFlow вручную."]);
+  if (wf.running && st.httpApiEnabled && !wf.api_up) warns.push(["", "WeFlow запущен, но API не отвечает. Проверьте, подключена ли база в WeFlow, и совпадает ли порт."]);
+  $("#wWarn").innerHTML = warns.map(([c, t]) => `<div class="note ${c}">${esc(t)}</div>`).join("");
+
+  if (!wfFormTouched) {
+    for (const el of wInputs()) {
+      const k = el.dataset.w;
+      if (k === "httpApiToken") { el.value = ""; continue; }
+      if (el.type === "checkbox") el.checked = !!st[k]; else el.value = st[k] ?? "";
+    }
+  }
+  const dl = [["Файл настроек", wf.config_path], ["weflow.exe", wf.exe_path || "не найден"], ["База WeChat", d.dbPath || "—"],
+              ["Аккаунт", d.myAccountId || "—"], ["Модуль базы", d.wcdbLibPath || "—"]];
+  $("#wDiag").innerHTML = dl.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+  $("#wForm").disabled = !wf.config_exists;
+  if (document.activeElement !== $("#wExe")) $("#wExe").value = wf.weflow_exe_override || "";
+  if (document.activeElement !== $("#wCfgPath")) $("#wCfgPath").value = wf.weflow_config_override || "";
+}
+$("#wForm").addEventListener("input", () => wfFormTouched = true);
+$("#wGen").onclick = () => {
+  const b = new Uint8Array(24); crypto.getRandomValues(b);
+  document.querySelector('[data-w="httpApiToken"]').value = btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  wfFormTouched = true;
+};
+$("#wPreset").onclick = () => {
+  const set = (k, v) => { const el = document.querySelector(`[data-w="${k}"]`); if (el.type === "checkbox") el.checked = v; else el.value = v; };
+  set("httpApiEnabled", true); set("launchAtStartup", true); set("silentStartup", true); set("windowCloseBehavior", "tray");
+  if (!document.querySelector('[data-w="httpApiPort"]').value) set("httpApiPort", 5031);
+  if (wf && wf.token_state !== "plain" && !wf.api_up) $("#wGen").click();
+  $("#wSync").checked = true; wfFormTouched = true;
+  toast("Заполнено: API включён, автозапуск свёрнутым, закрытие в трей. Нажмите «Сохранить в WeFlow».");
+};
+$("#wSave").onclick = e => {
+  const body = {restart: !!wf?.running, sync: $("#wSync").checked};
+  for (const el of wInputs()) {
+    const k = el.dataset.w;
+    body[k] = el.type === "checkbox" ? el.checked : (el.type === "number" ? Number(el.value || 5031) : el.value.trim());
+  }
+  if (wf?.running && !confirm("WeFlow будет закрыт и запущен заново, чтобы применить настройки. Продолжить?")) return;
+  act(e.target, async () => {
+    const r = await api("/api/weflow/settings", body);
+    wfFormTouched = false; await loadConfig(); setTimeout(loadWeflow, 1500); return r;
+  });
+};
+$("#wStart").onclick = e => act(e.target, async () => { const r = await api("/api/weflow/start", {}); setTimeout(loadWeflow, 3000); return r; });
+$("#wStop").onclick = e => { if (confirm("Остановить WeFlow? Пока он не запущен, новые Moments не поступают.")) act(e.target, async () => { const r = await api("/api/weflow/stop", {}); await loadWeflow(); return r; }); };
+$("#wRestart").onclick = e => act(e.target, async () => { const r = await api("/api/weflow/restart", {}); setTimeout(loadWeflow, 3000); return r; });
+$("#wReload").onclick = e => act(e.target, loadWeflow);
+$("#wBlock").onchange = e => act(e.target, async () => { const r = await api("/api/weflow/block-delete", {enabled: e.target.checked}); await loadWeflow(); return r; });
+$("#wSavePaths").onclick = e => act(e.target, async () => {
+  const r = await api("/api/weflow/paths", {weflow_exe: $("#wExe").value, weflow_config_path: $("#wCfgPath").value});
+  await loadConfig(); await loadWeflow(); return r;
+});
+
+/* ---------- tabs */
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("active", x === b));
+  document.querySelectorAll("section").forEach(s => s.classList.toggle("active", s.id === "tab-" + b.dataset.tab));
+  try { localStorage.setItem("m2t-tab", b.dataset.tab); } catch {}
+});
+try { const t = localStorage.getItem("m2t-tab"); if (t) document.querySelector(`nav button[data-tab="${t}"]`)?.click(); } catch {}
+
+/* ---------- log */
+let logSeq = 0;
+async function pollLog() {
+  try {
+    const r = await api(`/api/log?after=${logSeq}`);
+    if (r.lines.length) {
+      const el = $("#log");
+      el.insertAdjacentHTML("beforeend", r.lines.map(l => `<div class="${esc(l.level)}">${esc(l.text)}</div>`).join(""));
+      while (el.childElementCount > 1500) el.firstElementChild.remove();
+      logSeq = r.lines[r.lines.length - 1].seq;
+      if ($("#logFollow").checked) el.scrollTop = el.scrollHeight;
+    }
+  } catch {}
+}
+$("#btnLogClear").onclick = () => $("#log").innerHTML = "";
+window.addEventListener("beforeunload", e => { if (accDirty) { e.preventDefault(); e.returnValue = ""; } });
+
+/* ---------- setup wizard */
+const wz = {step: 0, done: [false, false, false, false], bot: null, chat: null, token: "", busy: false};
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const stateBox = (cls, text) => `<div class="state ${cls}"><span class="ic">${cls === "ok" ? "✓" : cls === "bad" ? "✕" : cls === "warn" ? "!" : "…"}</span><span>${text}</span></div>`;
+function genToken() { const b = new Uint8Array(24); crypto.getRandomValues(b); return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+
+function openWizard(step) {
+  $("#wz").hidden = false;
+  if (step !== undefined) wz.step = step;
+  renderWizard();
+}
+function closeWizard() { $("#wz").hidden = true; try { localStorage.setItem("m2t-wz-closed", "1"); } catch {} refreshStatus(); }
+$("#btnWizard").onclick = () => openWizard(0);
+$("#wzClose").onclick = closeWizard;
+$("#wz").addEventListener("click", e => { if (e.target.id === "wz") closeWizard(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#wz").hidden) closeWizard(); });
+$("#wzPrev").onclick = () => { if (wz.step > 0) { wz.step--; renderWizard(); } };
+$("#wzSkip").onclick = () => { if (wz.step < 3) { wz.step++; renderWizard(); } else closeWizard(); };
+$("#wzNext").onclick = async () => {
+  if (wz.busy) return;
+  if (wz.step === 2) { await wzSaveAccounts(); if (!wz.done[2]) return; }
+  if (wz.step === 3) { await wzFinish(); return; }
+  wz.step++; renderWizard();
+};
+
+function renderWizard() {
+  document.querySelectorAll("#wzSteps li").forEach(li => {
+    const i = +li.dataset.s; li.className = i === wz.step ? "cur" : (wz.done[i] ? "done" : "");
+  });
+  $("#wzPrev").disabled = wz.step === 0;
+  $("#wzSkip").style.display = wz.step < 3 ? "" : "none";
+  $("#wzNext").textContent = wz.step === 3 ? "Готово" : (wz.step === 2 ? "Сохранить и далее" : "Далее");
+  [wzWeflow, wzTelegram, wzAccounts, wzLaunch][wz.step]();
+}
+
+/* step 1: WeFlow */
+async function wzWeflow() {
+  const body = $("#wzBody");
+  body.innerHTML = `<h3>Подключение к WeFlow</h3><p>WeFlow читает базу WeChat на этом компьютере и отдаёт Moments через свой HTTP API.</p>${stateBox("", '<span class="spin"></span> Проверяю WeFlow…')}`;
+  let info, test = null;
+  try { info = await api("/api/weflow"); } catch (e) { body.innerHTML += stateBox("bad", esc(e.message)); return; }
+  if (info.api_up) { try { test = await api("/api/test-weflow", {}); } catch (e) { test = {error: e.message}; } }
+  const d = info.diag || {};
+  let html = `<h3>Подключение к WeFlow</h3><p>WeFlow читает базу WeChat на этом компьютере и отдаёт Moments через свой HTTP API.</p>`;
+  if (test && !test.error) {
+    wz.done[0] = true;
+    html += stateBox("ok", esc(test.message));
+  } else if (!info.config_exists) {
+    html += stateBox("bad", "WeFlow не найден на этом компьютере.");
+    html += `<ol><li>Установите WeFlow (см. раздел «WeFlow» в README).</li><li>Откройте его и пройдите первичную настройку: подключите базу WeChat.</li><li>Вернитесь сюда и нажмите «Проверить снова».</li></ol>
+      <div class="field"><label>Если WeFlow стоит не в стандартном месте: путь к приложению</label><input type="text" class="mono" id="wzExe" value="${esc(info.weflow_exe_override)}" placeholder="${esc(info.exe_path || "путь к weflow.exe / WeFlow.app / AppImage")}"></div>
+      <div class="field"><label>и к файлу WeFlow-config.json</label><input type="text" class="mono" id="wzCfg" value="${esc(info.weflow_config_override)}" placeholder="${esc(info.config_path)}"></div>
+      <button id="wzRecheck">Проверить снова</button>`;
+  } else {
+    if (!d.onboardingDone) html += stateBox("warn", "WeFlow установлен, но первичная настройка не пройдена: откройте WeFlow и подключите базу WeChat.");
+    if (!d.wcdbLibPath) html += stateBox("warn", "В WeFlow не указан модуль чтения базы (Настройки → База данных → компоненты). Без него Moments не читаются.");
+    else if (!d.wcdbLibExists) html += stateBox("bad", `Модуль чтения базы не найден: ${esc(d.wcdbLibPath)}`);
+    if (d.appLock || d.lockMode) html += stateBox("warn", "В WeFlow включён пароль: после перезапуска разблокируйте WeFlow вручную.");
+    html += test?.error ? stateBox("bad", esc(test.error)) : stateBox("", info.running ? "WeFlow запущен, но его API не отвечает." : "WeFlow не запущен или его API выключен.");
+    html += `<p>Нажмите кнопку: панель включит API в WeFlow, задаст новый токен, пропишет его в moments2tg, включит запуск WeFlow вместе с системой (свёрнутым в трей) и ${info.running ? "перезапустит" : "запустит"} WeFlow.</p>
+      <button class="primary" id="wzAuto">Настроить WeFlow автоматически</button> <button id="wzRecheck">Проверить снова</button>
+      <div id="wzAutoState"></div>`;
+  }
+  body.innerHTML = html;
+  $("#wzRecheck") && ($("#wzRecheck").onclick = async () => {
+    if ($("#wzExe")) await api("/api/weflow/paths", {weflow_exe: $("#wzExe").value, weflow_config_path: $("#wzCfg").value}).catch(e => toast(e.message, true));
+    wzWeflow();
+  });
+  $("#wzAuto") && ($("#wzAuto").onclick = async e => {
+    if (info.running && !confirm("WeFlow будет закрыт и запущен заново. Продолжить?")) return;
+    e.target.disabled = true; wz.busy = true;
+    const st = info.settings || {};
+    const out = $("#wzAutoState");
+    try {
+      out.innerHTML = stateBox("", '<span class="spin"></span> Сохраняю настройки WeFlow…');
+      await api("/api/weflow/settings", {httpApiEnabled: true, httpApiPort: st.httpApiPort || 5031, httpApiToken: genToken(),
+        launchAtStartup: true, silentStartup: true, windowCloseBehavior: "tray", restart: true, sync: true});
+      await loadConfig();
+      for (let i = 0; i < 30; i++) {
+        out.innerHTML = stateBox("", `<span class="spin"></span> Жду, пока WeFlow запустится и поднимет API… ${i * 3} с`);
+        await sleep(3000);
+        try { const t = await api("/api/test-weflow", {}); wz.done[0] = true; out.innerHTML = stateBox("ok", esc(t.message)); break; } catch {}
+      }
+      if (!wz.done[0]) out.innerHTML = stateBox("warn", "WeFlow сохранил настройки, но API пока не отвечает. Откройте WeFlow: возможно, нужно разблокировать его или подключить базу WeChat. Потом нажмите «Проверить снова».");
+    } catch (err) { out.innerHTML = stateBox("bad", esc(err.message)); }
+    finally { e.target.disabled = false; wz.busy = false; renderWizardStepsOnly(); }
+  });
+  renderWizardStepsOnly();
+}
+function renderWizardStepsOnly() {
+  document.querySelectorAll("#wzSteps li").forEach(li => { const i = +li.dataset.s; li.className = i === wz.step ? "cur" : (wz.done[i] ? "done" : ""); });
+}
+
+/* step 2: Telegram */
+async function wzTelegram() {
+  const c = cfg || await api("/api/config");
+  const savedTok = c.telegram_bot_token || "";
+  $("#wzBody").innerHTML = `<h3>Telegram-бот и канал</h3>
+    <ol><li>Откройте <b>@BotFather</b> в Telegram, отправьте <code>/newbot</code> и скопируйте токен.</li></ol>
+    <div class="field"><label>Токен бота</label><div class="inline"><input type="password" class="mono" id="wzTok" value="${esc(savedTok)}" placeholder="123456789:AA…"><button id="wzTokCheck">Проверить</button></div></div>
+    <div id="wzBotState"></div>
+    <div id="wzChatPart" style="display:none">
+      <ol start="2"><li>Добавьте <b id="wzBotName">бота</b> в администраторы канала с правом публикации сообщений.</li>
+      <li>Опубликуйте в канале любое сообщение и нажмите «Найти мои каналы», либо впишите адрес канала вручную.</li></ol>
+      <button id="wzDiscover">Найти мои каналы</button>
+      <div class="pick" id="wzChats"></div>
+      <div class="field"><label>Канал</label><div class="inline"><input type="text" class="mono" id="wzChat" value="${esc(c.telegram_chat_id || "")}" placeholder="@my_channel или -100…"><button id="wzChatCheck">Проверить канал</button></div></div>
+      <div id="wzChatState"></div>
+    </div>`;
+  const checkBot = async () => {
+    const box = $("#wzBotState"); box.innerHTML = stateBox("", '<span class="spin"></span> Проверяю токен…');
+    try {
+      const r = await api("/api/telegram/check", {token: $("#wzTok").value.trim()});
+      wz.bot = r.bot; wz.token = $("#wzTok").value.trim();
+      box.innerHTML = stateBox("ok", `Бот найден: <b>@${esc(r.bot.username)}</b>`);
+      $("#wzBotName").textContent = "@" + r.bot.username; $("#wzChatPart").style.display = "";
+      if ($("#wzChat").value.trim()) checkChat();
+    } catch (e) { wz.bot = null; box.innerHTML = stateBox("bad", esc(e.message)); $("#wzChatPart").style.display = "none"; }
+  };
+  const checkChat = async () => {
+    const box = $("#wzChatState"); box.innerHTML = stateBox("", '<span class="spin"></span> Проверяю канал…');
+    try {
+      const r = await api("/api/telegram/check", {token: wz.token, chat_id: $("#wzChat").value.trim()});
+      if (!r.member.can_post) { box.innerHTML = stateBox("bad", esc(r.message)); wz.done[1] = false; return renderWizardStepsOnly(); }
+      const full = await api("/api/config");
+      if (wz.token && !wz.token.startsWith("••••")) full.telegram_bot_token = wz.token;
+      full.telegram_chat_id = r.chat.username ? "@" + r.chat.username : String(r.chat.id);
+      await api("/api/config", full); await loadConfig();
+      wz.done[1] = true;
+      box.innerHTML = stateBox("ok", esc(r.message) + ". Сохранено.") + `<button id="wzTestMsg">Отправить тестовое сообщение</button>`;
+      $("#wzTestMsg").onclick = ev => act(ev.target, () => api("/api/test-telegram", {}));
+    } catch (e) { box.innerHTML = stateBox("bad", esc(e.message)); wz.done[1] = false; }
+    renderWizardStepsOnly();
+  };
+  $("#wzTokCheck").onclick = checkBot;
+  $("#wzChatCheck").onclick = checkChat;
+  $("#wzDiscover").onclick = async () => {
+    const box = $("#wzChats"); box.innerHTML = stateBox("", '<span class="spin"></span> Ищу…');
+    try {
+      const r = await api("/api/telegram/discover", {token: wz.token});
+      if (!r.chats.length) { box.innerHTML = stateBox("warn", "Пока ничего не найдено. Проверьте, что бот — администратор канала, опубликуйте в канале сообщение и нажмите ещё раз."); return; }
+      box.innerHTML = r.chats.map(ch => `<label><input type="radio" name="wzc" value="${esc(ch.username ? "@" + ch.username : ch.id)}"><span><b>${esc(ch.title || ch.id)}</b> <small style="color:var(--ink-3)">${esc(ch.username ? "@" + ch.username : ch.id)} · ${esc(ch.type)}</small></span></label>`).join("");
+      box.querySelectorAll("input").forEach(i => i.onchange = () => { $("#wzChat").value = i.value; checkChat(); });
+    } catch (e) { box.innerHTML = stateBox("bad", esc(e.message)); }
+  };
+  if (savedTok) checkBot();
+}
+
+/* step 3: accounts */
+let wzAccList = [];
+async function wzAccounts() {
+  $("#wzBody").innerHTML = `<h3>Чьи Moments публиковать</h3><p>Отметьте друзей. Список берётся из WeFlow.</p>${stateBox("", '<span class="spin"></span> Загружаю список…')}`;
+  try { wzAccList = (await api("/api/accounts")).accounts; }
+  catch (e) { $("#wzBody").innerHTML = `<h3>Чьи Moments публиковать</h3>${stateBox("bad", esc(e.message))}<p>Вернитесь к шагу WeFlow или выберите аккаунты позже на вкладке «Аккаунты».</p>`; return; }
+  $("#wzBody").innerHTML = `<h3>Чьи Moments публиковать</h3><p>Отметьте друзей. Подпись в канале и имя для поиска в WeChat можно поменять позже на вкладке «Аккаунты».</p>
+    <input type="search" id="wzSearch" placeholder="Поиск по имени или wxid"><div class="wz-acc" id="wzAccBox"></div><p style="margin-top:8px" id="wzAccCount"></p>`;
+  const draw = () => {
+    const q = $("#wzSearch").value.trim().toLowerCase();
+    const list = wzAccList.filter(a => a.has_moments || a.selected)
+      .filter(a => !q || [a.username, a.remark, a.nickname].some(x => (x || "").toLowerCase().includes(q)))
+      .sort((a, b) => (b.selected - a.selected) || (a.remark || a.nickname || a.username).localeCompare(b.remark || b.nickname || b.username, "zh"));
+    $("#wzAccBox").innerHTML = list.slice(0, 300).map(a => `<label><input type="checkbox" data-u="${esc(a.username)}" ${a.selected ? "checked" : ""}><span><b>${esc(a.remark || a.nickname || a.username)}</b><small>${esc(a.username)}</small></span></label>`).join("") || '<div class="empty">Никого не найдено</div>';
+    $("#wzAccCount").textContent = `Выбрано: ${wzAccList.filter(a => a.selected).length}`;
+  };
+  $("#wzSearch").oninput = draw;
+  $("#wzAccBox").onchange = e => { const a = wzAccList.find(x => x.username === e.target.dataset.u); if (a) a.selected = e.target.checked; $("#wzAccCount").textContent = `Выбрано: ${wzAccList.filter(a => a.selected).length}`; };
+  draw();
+}
+async function wzSaveAccounts() {
+  if (!wzAccList.length) { wz.step++; renderWizard(); return; }
+  if (!wzAccList.some(a => a.selected)) { toast("Отметьте хотя бы одного друга", true); return; }
+  wz.busy = true;
+  try {
+    const keep = new Map(accounts.map(a => [a.username, a]));
+    accounts = wzAccList.map(a => ({...a, label: keep.get(a.username)?.label || a.label, wechat_name: keep.get(a.username)?.wechat_name || a.wechat_name}));
+    await loadConfig();
+    await api("/api/config", formToConfig());
+    markDirty(false); await loadConfig(); renderAccounts();
+    wz.done[2] = true;
+  } catch (e) { toast(e.message, true); }
+  finally { wz.busy = false; }
+}
+
+/* step 4: launch */
+async function wzLaunch() {
+  const c = await api("/api/config");
+  const items = [[wz.done[0], "WeFlow подключён"], [wz.done[1] || !!c.telegram_chat_id, "Telegram-канал настроен"], [(c.usernames || []).length > 0, `Выбрано друзей: ${(c.usernames || []).length}`]];
+  $("#wzBody").innerHTML = `<h3>Всё почти готово</h3>
+    ${items.map(([ok, t]) => stateBox(ok ? "ok" : "warn", esc(t) + (ok ? "" : " — можно доделать позже"))).join("")}
+    <label class="check" style="margin-top:12px"><input type="checkbox" id="wzAuto2" checked><span>Запускать опрос автоматически вместе с панелью</span></label>
+    <label class="check"><input type="checkbox" id="wzSkipOld" ${c.skip_existing_on_first_run !== false ? "checked" : ""}><span>Не публиковать старые посты, только новые</span></label>
+    <label class="check"><input type="checkbox" id="wzAutoLogin" ${lastStatus?.autostart?.enabled ? "checked" : ""}><span>Запускать панель при входе в систему<small>Чтобы пересылка работала постоянно, без ручного запуска</small></span></label>`;
+  $("#wzAutoLogin").onchange = e => setAutostart(e.target);
+  wz.done[3] = true; renderWizardStepsOnly();
+}
+async function wzFinish() {
+  wz.busy = true;
+  try {
+    const full = await api("/api/config");
+    full.panel_autostart = $("#wzAuto2").checked; full.skip_existing_on_first_run = $("#wzSkipOld").checked;
+    await api("/api/config", full); await loadConfig();
+    if ((full.usernames || []).length && full.telegram_chat_id) { await api("/api/start", {}); toast("Опрос запущен"); }
+    closeWizard();
+  } catch (e) { toast(e.message, true); }
+  finally { wz.busy = false; }
+}
+
+/* ---------- boot */
+(async () => {
+  try { await loadConfig(); accounts = fromConfigUsers(); renderAccounts(); } catch (e) { toast(e.message, true); }
+  await refreshStatus(); pollLog(); loadWeflow();
+  // first run or incomplete setup -> open the wizard
+  const s = lastStatus || {};
+  if (!s.config_exists || !s.telegram_ok || !s.accounts) openWizard(!s.config_exists ? 0 : (!s.telegram_ok ? 1 : 2));
+  setInterval(refreshStatus, 2000);
+  setInterval(() => { if ($("#tab-weflow").classList.contains("active")) loadWeflow(); }, 5000);
+  setInterval(pollLog, 2000);
+  // fill names for the already selected accounts, if WeFlow is up
+  api("/api/accounts").then(r => {
+    if (accDirty) return;
+    const sel = new Set(accounts.filter(a => a.selected).map(a => a.username));
+    accounts = r.accounts.map(a => ({...a, selected: sel.has(a.username) || a.selected}));
+    renderAccounts();
+  }).catch(() => {});
+})();
+</script>
+</body>
+</html>
