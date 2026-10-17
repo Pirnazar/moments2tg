@@ -34,7 +34,7 @@ WeChat (десктоп) ──► локальная база ──► WeFlow (
 1. Установите Python с [python.org](https://www.python.org/downloads/). В установщике **отметьте «Add python.exe to PATH»**.
 2. Скачайте проект: зелёная кнопка **Code → Download ZIP** на GitHub (и распакуйте) или
    ```bash
-   git clone https://github.com/<you>/moments2tg.git
+   git clone https://github.com/Pirnazar/moments2tg.git
    ```
 3. Дважды щёлкните **`start.bat`**.
 
@@ -46,7 +46,7 @@ WeChat (десктоп) ──► локальная база ──► WeFlow (
 1. Python: `brew install python` или установщик с [python.org](https://www.python.org/downloads/).
 2. Скачайте проект:
    ```bash
-   git clone https://github.com/<you>/moments2tg.git
+   git clone https://github.com/Pirnazar/moments2tg.git
    cd moments2tg
    ```
 3. Запустите:
@@ -61,7 +61,7 @@ WeChat (десктоп) ──► локальная база ──► WeFlow (
 
 ```bash
 sudo apt install python3 python3-venv git      # Debian/Ubuntu; Fedora: sudo dnf install python3 git
-git clone https://github.com/<you>/moments2tg.git
+git clone https://github.com/Pirnazar/moments2tg.git
 cd moments2tg
 ./start.sh
 ```
