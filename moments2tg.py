@@ -62,6 +62,12 @@ def load_config(path: Path) -> dict:
     refresh = cfg.setdefault("refresh", {})
     refresh.setdefault("enabled", False)
     refresh.setdefault("after_refresh_wait_sec", 10)
+    alpha = cfg.setdefault("alpha", {})
+    alpha.setdefault("manage", False)
+    alpha.setdefault("exe", "")
+    alpha.setdefault("autostart", True)
+    alpha.setdefault("watchdog", True)
+    alpha.setdefault("start_wait_sec", 45)
     # secrets may come from the environment instead of the file
     cfg["weflow_token"] = os.environ.get("WEFLOW_TOKEN") or cfg.get("weflow_token", "")
     cfg["telegram_bot_token"] = os.environ.get("TG_BOT_TOKEN") or cfg.get("telegram_bot_token", "")
@@ -498,6 +504,7 @@ class Worker:
         self._cfg_mtime = None
         self.cfg = self.weflow = self.tg = self.refresher = self.state = None
         self._wechat_names = None
+        self._alpha = None
         self.history: deque = deque(maxlen=100)
         self.status = {
             "running": False, "busy": None, "started_at": None,
@@ -529,6 +536,7 @@ class Worker:
             self.refresher.last_run = last_run
         self.state = State((BASE_DIR / cfg["state_file"]).resolve())
         self._wechat_names = None
+        self._alpha = None
         self.cfg = cfg
         self._cfg_mtime = mtime
         log.info("config loaded: %d accounts, poll every %ss%s", len(cfg["usernames"]),
@@ -586,6 +594,39 @@ class Worker:
             time.sleep(self.cfg["refresh"]["after_refresh_wait_sec"])
         return ok
 
+    # ----- Alpha engine management / watchdog
+
+    def _alpha_admin(self):
+        if self._alpha is None:
+            from alpha_admin import AlphaAdmin
+            self._alpha = AlphaAdmin((self.cfg.get("alpha") or {}).get("exe") or None)
+        return self._alpha
+
+    def _alpha_managed_watchdog(self) -> bool:
+        a = self.cfg.get("alpha") or {}
+        return bool(a.get("manage") and a.get("watchdog"))
+
+    def ensure_alpha(self):
+        """Start Alpha if it is managed and not running, then wait for its API."""
+        a = self.cfg.get("alpha") or {}
+        if not a.get("manage"):
+            return
+        admin = self._alpha_admin()
+        if not admin.running():
+            try:
+                log.info("watchdog: Alpha is not running, starting it")
+                admin.start()
+            except Exception as e:
+                log.warning("watchdog: cannot start Alpha: %s", e)
+                return
+        deadline = time.time() + int(a.get("start_wait_sec", 45))
+        while time.time() < deadline:
+            if self.weflow.health():
+                log.info("watchdog: Alpha API is up")
+                return
+            time.sleep(3)
+        log.warning("watchdog: Alpha API did not come up (sign in / enable API in Alpha?)")
+
     def run_pass(self, force_refresh: bool = False) -> int:
         with self._pass_lock:
             try:
@@ -600,8 +641,12 @@ class Worker:
                     except Exception as e:
                         log.exception("Moments refresh failed")
                         self.status["last_refresh_result"] = f"ошибка: {e}"
-                self.status["weflow_ok"] = self.weflow.health()
-                if not self.status["weflow_ok"]:
+                ok = self.weflow.health()
+                if not ok and self._alpha_managed_watchdog():
+                    self.ensure_alpha()
+                    ok = self.weflow.health()
+                self.status["weflow_ok"] = ok
+                if not ok:
                     raise ConfigError(f"WeFlow API is not reachable at {self.cfg['weflow_url']} "
                                       "(is WeFlow running with API service on?)")
                 self.status["busy"] = "poll"

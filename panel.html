@@ -218,6 +218,7 @@ legend { font-weight: 650; padding: 0 6px; }
 
   <nav>
     <button data-tab="accounts" class="active">Аккаунты <span class="count" id="nAcc">0</span></button>
+    <button data-tab="alpha">Alpha <span class="count" id="nAlpha">…</span></button>
     <button data-tab="weflow">WeFlow <span class="count" id="nWf">…</span></button>
     <button data-tab="settings">Настройки</button>
     <button data-tab="history">Отправленные <span class="count" id="nHist">0</span></button>
@@ -239,6 +240,36 @@ legend { font-weight: 650; padding: 0 6px; }
       </div>
     </div>
     <div class="savebar"><span class="chip" id="accDirty" style="display:none;align-self:center">есть несохранённые изменения</span><button class="primary" id="btnSaveAcc">Сохранить выбор</button></div>
+  </section>
+
+  <section id="tab-alpha">
+    <div class="cards">
+      <div class="card"><div class="k">Процесс Alpha</div><div class="v" id="aProc">—</div><div class="s" id="aProcS"></div></div>
+      <div class="card"><div class="k">HTTP API</div><div class="v" id="aApi">—</div><div class="s" id="aApiS"></div></div>
+    </div>
+    <div class="actions" style="margin-bottom:14px">
+      <button id="aStart" class="primary">Запустить Alpha</button>
+      <button id="aRestart">Перезапустить</button>
+      <button id="aStop" class="danger">Остановить</button>
+      <button id="aReload">Обновить статус</button>
+    </div>
+    <div id="aWarn"></div>
+    <div class="grid2">
+      <fieldset>
+        <legend>Управление Alpha из панели</legend>
+        <label class="check"><input type="checkbox" id="aManage"><span>Управлять Alpha из moments2tg<small>Включает автозапуск и сторож ниже</small></span></label>
+        <label class="check"><input type="checkbox" id="aAutostart"><span>Запускать Alpha вместе с панелью</span></label>
+        <label class="check"><input type="checkbox" id="aWatchdog"><span>Сторож: перезапускать Alpha, если API пропал</span></label>
+        <div class="field" style="margin-top:10px"><label>Путь к Alpha (если не найден сам)</label><input type="text" class="mono" id="aExe" placeholder="C:\Program Files\Alpha\Alpha.exe / Alpha.app / AppImage"></div>
+        <div class="actions"><button type="button" class="primary" id="aSave">Сохранить</button></div>
+        <div class="hint" style="font-size:12.5px;color:var(--ink-3);margin-top:8px">Alpha сам хранит токен и порт API — их задают один раз в самом Alpha (设置 → 接口与集成). Панель только запускает Alpha и следит за ним.</div>
+      </fieldset>
+      <fieldset>
+        <legend>Если Alpha не установлен</legend>
+        <p style="color:var(--ink-2);font-size:13.5px;margin:0 0 10px">Установить можно одной командой: <code>start.bat --setup</code> (Windows) или <code>./start.sh --setup</code> — скачает официальный релиз и проверит контрольную сумму.</p>
+        <div id="aDiag" class="diag"></div>
+      </fieldset>
+    </div>
   </section>
 
   <section id="tab-weflow">
@@ -604,6 +635,42 @@ $("#btnPollRefresh").onclick = e => {
 $("#btnTestTg").onclick = e => act(e.target, () => api("/api/test-telegram", {}));
 $("#btnTestWf").onclick = e => act(e.target, () => api("/api/test-weflow", {}));
 
+/* ---------- Alpha */
+let alphaTouched = false;
+async function loadAlpha() {
+  let a;
+  try { a = await api("/api/alpha"); } catch (e) { $("#aWarn").innerHTML = `<div class="note bad">${esc(e.message)}</div>`; return; }
+  setCard("#aProc", a.running ? "запущен" : "не запущен", a.running ? "ok" : "warn-t", a.running ? `PID ${a.pids.join(", ")}` : (a.exe_exists ? "" : "Alpha не найден"));
+  setCard("#aApi", a.api_up ? "отвечает" : "не отвечает", a.api_up ? "ok" : "bad-t", a.url || "");
+  $("#nAlpha").textContent = a.running && a.api_up ? "ok" : "!";
+  $("#aStart").disabled = a.running || !a.exe_exists;
+  $("#aStop").disabled = !a.running;
+  $("#aRestart").disabled = !a.running;
+  if (!alphaTouched) {
+    $("#aManage").checked = !!a.manage;
+    $("#aAutostart").checked = a.autostart !== false;
+    $("#aWatchdog").checked = a.watchdog !== false;
+    if (document.activeElement !== $("#aExe")) $("#aExe").value = a.exe_override || "";
+  }
+  const warns = [];
+  if (!a.exe_exists) warns.push(["bad", "Приложение Alpha не найдено. Установите: start.bat --setup (или ./start.sh --setup), либо укажите путь ниже."]);
+  else if (a.running && !a.api_up) warns.push(["", "Alpha запущен, но API не отвечает. Войдите в WeChat и включите HTTP API в Alpha (设置 → 接口与集成), и проверьте, совпадает ли порт в «Настройках» moments2tg."]);
+  else if (!a.running) warns.push(["", "Alpha не запущен. Включите «Управлять Alpha из панели» для автозапуска и сторожа, либо запустите вручную."]);
+  $("#aWarn").innerHTML = warns.map(([c, t]) => `<div class="note ${c}">${esc(t)}</div>`).join("");
+  $("#aDiag").innerHTML = [["Приложение", a.exe_path || "не найдено"], ["Адрес API", a.url || "—"]]
+    .map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+}
+["#aManage", "#aAutostart", "#aWatchdog"].forEach(id => $(id).addEventListener("change", () => alphaTouched = true));
+$("#aExe").addEventListener("input", () => alphaTouched = true);
+$("#aSave").onclick = e => act(e.target, async () => {
+  const r = await api("/api/alpha/settings", {manage: $("#aManage").checked, autostart: $("#aAutostart").checked, watchdog: $("#aWatchdog").checked, exe: $("#aExe").value.trim()});
+  alphaTouched = false; await loadConfig(); setTimeout(loadAlpha, 1200); return r;
+});
+$("#aStart").onclick = e => act(e.target, async () => { const r = await api("/api/alpha/start", {}); setTimeout(loadAlpha, 3000); return r; });
+$("#aRestart").onclick = e => act(e.target, async () => { const r = await api("/api/alpha/restart", {}); setTimeout(loadAlpha, 3000); return r; });
+$("#aStop").onclick = e => { if (confirm("Остановить Alpha? Пока он не работает, новые Moments не поступают.")) act(e.target, async () => { const r = await api("/api/alpha/stop", {}); await loadAlpha(); return r; }); };
+$("#aReload").onclick = e => act(e.target, loadAlpha);
+
 /* ---------- WeFlow */
 let wf = null, wfFormTouched = false;
 const wInputs = () => [...document.querySelectorAll("#wForm [data-w]")];
@@ -920,12 +987,13 @@ async function wzFinish() {
 /* ---------- boot */
 (async () => {
   try { await loadConfig(); accounts = fromConfigUsers(); renderAccounts(); } catch (e) { toast(e.message, true); }
-  await refreshStatus(); pollLog(); loadWeflow();
+  await refreshStatus(); pollLog(); loadWeflow(); loadAlpha();
   // first run or incomplete setup -> open the wizard
   const s = lastStatus || {};
   if (!s.config_exists || !s.telegram_ok || !s.accounts) openWizard(!s.config_exists ? 0 : (!s.telegram_ok ? 1 : 2));
   setInterval(refreshStatus, 2000);
   setInterval(() => { if ($("#tab-weflow").classList.contains("active")) loadWeflow(); }, 5000);
+  setInterval(() => { if ($("#tab-alpha").classList.contains("active")) loadAlpha(); }, 5000);
   setInterval(pollLog, 2000);
   // fill names for the already selected accounts, if WeFlow is up
   api("/api/accounts").then(r => {
