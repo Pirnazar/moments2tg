@@ -146,20 +146,70 @@ class WeFlow:
         except requests.RequestException:
             return False
 
+    def _abs(self, url: str) -> str:
+        """Make a media URL absolute (Alpha returns relative /api/v1/media/... paths)."""
+        if not url:
+            return url
+        if url.startswith("http://") or url.startswith("https://"):
+            return url
+        return self.base + (url if url.startswith("/") else "/" + url)
+
+    # ignore these media roles — they are previews, not the full item
+    _THUMB_ROLES = {"thumbnail", "thumb", "cover", "preview"}
+
+    def _normalize_alpha_post(self, it: dict) -> dict:
+        media = []
+        for m in it.get("media") or []:
+            u = m.get("url")
+            if u and str(m.get("role") or "").lower() not in self._THUMB_ROLES:
+                au = self._abs(u)
+                media.append({"url": au, "proxyUrl": au, "role": m.get("role")})
+        return {
+            "id": str(it.get("id") or ""),
+            "username": it.get("username") or "",
+            "nickname": it.get("nickname") or "",
+            "createTime": int(it.get("created_at_unix_ms") or 0) // 1000,
+            "type": it.get("type") or 0,
+            "contentDesc": it.get("text") or "",
+            "rawXml": it.get("raw_xml") or "",
+            "media": media,
+            "likes": [],
+            "comments": [],
+        }
+
     def timeline(self, username: str, limit: int) -> list[dict]:
-        data = self._get("/api/v1/sns/timeline", usernames=username, limit=limit,
-                         offset=0, media=1, replace=0, inline=0)
-        return data.get("timeline") or []
+        data = self._get("/api/v1/sns/timeline", usernames=username, limit=limit, offset=0, media=1)
+        if "items" in data:  # Alpha
+            return [self._normalize_alpha_post(it) for it in (data.get("items") or [])]
+        return data.get("timeline") or []  # WeFlow
 
     def sns_usernames(self) -> list[str]:
-        return self._get("/api/v1/sns/usernames").get("usernames") or []
+        data = self._get("/api/v1/sns/usernames")
+        if "users" in data:  # Alpha: [{username, count}]
+            return [u.get("username") for u in data["users"] if u.get("username")]
+        return data.get("usernames") or []  # WeFlow
 
     def contacts(self) -> dict[str, dict]:
         data = self._get("/api/v1/contacts", limit=100000)
-        return {c["username"]: c for c in data.get("contacts") or [] if c.get("username")}
+        rows = data.get("contacts")
+        if rows is None:
+            rows = data.get("items") or []  # Alpha
+        out: dict[str, dict] = {}
+        for c in rows:
+            u = c.get("username")
+            if not u:
+                continue
+            out[u] = {
+                "username": u,
+                "remark": c.get("remark") or "",
+                "nickname": c.get("nickname") or "",
+                "displayName": c.get("displayName") or c.get("display_name") or "",
+                "avatarUrl": c.get("avatarUrl") or c.get("avatar_ref") or "",
+            }
+        return out
 
     def download(self, url: str) -> tuple[bytes, str]:
-        r = self.s.get(url, timeout=180)
+        r = self.s.get(self._abs(url), timeout=180)
         r.raise_for_status()
         return r.content, r.headers.get("Content-Type", "application/octet-stream")
 
