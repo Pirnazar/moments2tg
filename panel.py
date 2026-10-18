@@ -20,6 +20,7 @@ from urllib.parse import parse_qs, urlparse
 
 import autostart
 import moments2tg as core
+from alpha_admin import AlphaAdmin
 from weflow_admin import WeFlowAdmin
 
 log = logging.getLogger("moments2tg.panel")
@@ -291,6 +292,53 @@ class Panel:
         raw = self.read_raw_config()
         return core.WeFlow(raw.get("weflow_url") or "http://127.0.0.1:5031", raw.get("weflow_token", ""))
 
+    # ----- Alpha management
+
+    def alpha_admin(self) -> AlphaAdmin:
+        return AlphaAdmin(self.read_raw_config().get("alpha", {}).get("exe") or None)
+
+    def alpha_info(self) -> dict:
+        raw = self.read_raw_config()
+        a = raw.get("alpha", {})
+        info = self.alpha_admin().info()
+        info["manage"] = bool(a.get("manage"))
+        info["autostart"] = a.get("autostart", True)
+        info["watchdog"] = a.get("watchdog", True)
+        info["exe_override"] = a.get("exe") or ""
+        info["url"] = raw.get("weflow_url") or ""
+        info["api_up"] = self.weflow_client().health()
+        return info
+
+    def alpha_process(self, action: str) -> dict:
+        admin = self.alpha_admin()
+        if action == "start":
+            admin.start()
+            return {"ok": True, "message": "Alpha запускается"}
+        if action == "stop":
+            admin.stop()
+            return {"ok": True, "message": "Alpha остановлен"}
+        if action == "restart":
+            admin.stop()
+            admin.start()
+            return {"ok": True, "message": "Alpha перезапускается"}
+        raise ValueError(action)
+
+    def alpha_settings(self, data: dict) -> dict:
+        raw = self.read_raw_config()
+        a = raw.setdefault("alpha", {})
+        for k in ("manage", "autostart", "watchdog"):
+            if k in data:
+                a[k] = bool(data[k])
+        if "exe" in data:
+            a["exe"] = str(data.get("exe") or "").strip()
+        self.save_config(raw)
+        if a.get("manage") and a.get("autostart") and not self.alpha_admin().running():
+            try:
+                self.alpha_admin().start()
+            except Exception as e:
+                log.warning("Alpha autostart after save failed: %s", e)
+        return {"ok": True, "message": "Настройки Alpha сохранены"}
+
     def weflow_info(self) -> dict:
         info = self.weflow_admin().info()
         plain = info.pop("token_plain", "")
@@ -417,6 +465,8 @@ def make_handler(panel: Panel):
                     self._json(panel.status())
                 elif url.path == "/api/config":
                     self._json(panel.public_config())
+                elif url.path == "/api/alpha":
+                    self._json(panel.alpha_info())
                 elif url.path == "/api/weflow":
                     self._json(panel.weflow_info())
                 elif url.path == "/api/accounts":
@@ -476,6 +526,10 @@ def make_handler(panel: Panel):
                     self._json(panel.weflow_apply(data))
                 elif path in ("/api/weflow/start", "/api/weflow/stop", "/api/weflow/restart"):
                     self._json(panel.weflow_process(path.rsplit("/", 1)[-1]))
+                elif path in ("/api/alpha/start", "/api/alpha/stop", "/api/alpha/restart"):
+                    self._json(panel.alpha_process(path.rsplit("/", 1)[-1]))
+                elif path == "/api/alpha/settings":
+                    self._json(panel.alpha_settings(data))
                 elif path == "/api/weflow/block-delete":
                     self._json(panel.weflow_block_delete(bool(data.get("enabled"))))
                 elif path == "/api/weflow/paths":
@@ -495,7 +549,12 @@ def make_handler(panel: Panel):
 def serve(config_path: Path, port: int = 8765, open_browser: bool = True):
     panel = Panel(config_path, port)
     try:
-        if panel.read_raw_config().get("panel_autostart") and config_path.exists():
+        raw = panel.read_raw_config()
+        alpha = raw.get("alpha", {})
+        if alpha.get("manage") and alpha.get("autostart") and not panel.alpha_admin().running():
+            log.info("autostart: launching Alpha")
+            panel.alpha_admin().start()
+        if raw.get("panel_autostart") and config_path.exists():
             panel.worker.start()
     except Exception as e:
         log.warning("autostart skipped: %s", e)
