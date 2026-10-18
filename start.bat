@@ -38,6 +38,14 @@ if errorlevel 1 (
   copy /y requirements.txt "%VENV%\requirements.installed" >nul
 )
 
+if /i "%~1"=="--setup" (
+  "%PY%" install_alpha.py %2 %3
+  echo.
+  echo [moments2tg] Готово. Дальше запускайте start.bat без аргументов — откроется панель.
+  pause
+  exit /b 0
+)
+
 if "%~1"=="" (
   "%PY%" moments2tg.py --panel
 ) else (

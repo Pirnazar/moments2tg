@@ -36,6 +36,14 @@ if ! cmp -s requirements.txt "$VENV/requirements.installed"; then
   cp requirements.txt "$VENV/requirements.installed"
 fi
 
+if [ "${1:-}" = "--setup" ]; then
+  shift
+  "$PY" install_alpha.py "$@"
+  echo
+  echo "[moments2tg] Готово. Дальше запускайте ./start.sh без аргументов — откроется панель."
+  exit 0
+fi
+
 if [ $# -eq 0 ]; then
   exec "$PY" moments2tg.py --panel
 else
